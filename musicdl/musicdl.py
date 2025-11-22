@@ -10,6 +10,7 @@ import sys
 import copy
 import click
 import json_repair
+import concurrent.futures
 if __name__ == '__main__':
     from __init__ import __version__
     from modules import BuildMusicClient, LoggerHandle, MusicClientBuilder, smarttrunctable, colorize, printfullline
@@ -98,14 +99,44 @@ class MusicClient():
             for idx in user_input_select_song_info_pointer: selected_song_infos.append(song_infos[idx])
             self.download(selected_song_infos)
     '''search'''
-    def search(self, keyword):
+    def search(self, keyword, timeout=10):
+        """搜索音乐
+        Args:
+            keyword: 搜索关键词
+            timeout: 单个音乐源的搜索超时时间(秒)
+        Returns:
+            搜索结果字典
+        """
         self.logger_handle.info(f'Searching {colorize(keyword, "highlight")} From {colorize("|".join(self.music_sources), "highlight")}')
         search_results = dict()
-        for music_source in self.music_sources:
-            search_results[music_source] = self.music_clients[music_source].search(
-                keyword=keyword, num_threadings=self.clients_threadings[music_source], 
-                request_overrides=self.requests_overrides[music_source], rule=self.search_rules[music_source]
-            )
+        
+        # 定义单个音乐源的搜索函数
+        def search_one_source(music_source):
+            try:
+                return music_source, self.music_clients[music_source].search(
+                    keyword=keyword, num_threadings=self.clients_threadings[music_source], 
+                    request_overrides=self.requests_overrides[music_source], rule=self.search_rules[music_source]
+                )
+            except Exception as e:
+                self.logger_handle.error(f'Error searching from {music_source}: {str(e)}')
+                return music_source, []
+        
+        # 使用线程池并行搜索，添加超时机制
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.music_sources)) as executor:
+            future_to_source = {executor.submit(search_one_source, source): source for source in self.music_sources}
+            for future in concurrent.futures.as_completed(future_to_source, timeout=timeout * 2):  # 总超时设为单个源超时的2倍
+                music_source = future_to_source[future]
+                try:
+                    # 获取结果时设置超时
+                    music_source, results = future.result(timeout=timeout)
+                    search_results[music_source] = results
+                except concurrent.futures.TimeoutError:
+                    self.logger_handle.warning(f'Search timeout for {music_source}')
+                    search_results[music_source] = []
+                except Exception as e:
+                    self.logger_handle.error(f'Error getting results from {music_source}: {str(e)}')
+                    search_results[music_source] = []
+        
         return search_results
     '''download'''
     def download(self, song_infos):

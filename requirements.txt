@@ -5,7 +5,6 @@ pycryptodome
 orjson
 requests
 cryptography
-faster-whisper
 pyfreeproxy
 fake_useragent
 pathvalidate
@@ -14,6 +13,5 @@ emoji
 bleach
 beautifulsoup4
 aigpy
-av
 tabulate
 mutagen

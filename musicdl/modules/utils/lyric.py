@@ -10,12 +10,19 @@ import os
 import re
 import tempfile
 import requests
-from faster_whisper import WhisperModel
+try:
+    from faster_whisper import WhisperModel
+    HAS_FASTER_WHISPER = True
+except ImportError:
+    HAS_FASTER_WHISPER = False
+    print("Warning: faster-whisper not available, some features will be disabled.")
 
 
-'''WhisperLRC'''
+'''WhisperLRC - only available if faster-whisper is installed'''
 class WhisperLRC:
     def __init__(self, model_size_or_path="small", device="auto", compute_type="int8", cpu_threads=4, num_workers=1, **kwargs):
+        if not HAS_FASTER_WHISPER:
+            raise ImportError("faster-whisper is not available. Please install it to use WhisperLRC.")
         self.whisper_model = WhisperModel(model_size_or_path, device=device, compute_type=compute_type, cpu_threads=cpu_threads, num_workers=num_workers, **kwargs)
     '''downloadtotmpdir'''
     @staticmethod
